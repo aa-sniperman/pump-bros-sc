@@ -35,7 +35,7 @@ contract PumpTokenTest is Test {
         vm.startBroadcast(user1);
         string memory name = "Pump Token";
         string memory symbol = "PUMP";
-        uint32 reserveRatio = 100;
+        uint32 reserveRatio = 1e5; // 1 / 10 => y = m * x ^ 9
         
 
         pumpFactory.createPumpToken(name, symbol, reserveRatio);

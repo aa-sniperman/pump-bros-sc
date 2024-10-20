@@ -35,15 +35,15 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
 
     uint16 private constant USER_HOLDINGS_TO_PUMP_THRESHOLD_BPS = 5100; // 51%
 
-    IUniswapV2Router02 public uniswapV2Router;
-
-    IUniswapV2Pair public uniswapPair;
-
     uint256 public totalRaised;
 
     uint256 public totalReserve;
 
     uint256 public totalPumped;
+
+    IUniswapV2Router02 public uniswapV2Router;
+
+    IUniswapV2Pair public uniswapPair;
 
     bool private _launching;
 
