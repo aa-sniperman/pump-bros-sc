@@ -3,6 +3,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import "./BondingCurve.sol";
 
 import "./Math/SafeMath.sol";
@@ -12,7 +15,7 @@ import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IWETH.sol";
 
-contract PumpToken is BondingCurve {
+contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
     using Math for uint256;
     using SafeMath for uint256;
 
@@ -80,7 +83,10 @@ contract PumpToken is BondingCurve {
         _;
     }
 
-    function buy(uint256 minAmountOut, address recipient) external payable onlyWhenLaunching {
+    function buy(
+        uint256 minAmountOut,
+        address recipient
+    ) external payable onlyWhenLaunching {
         uint256 tokensToMint = _buy(msg.value, recipient);
         require(tokensToMint >= minAmountOut, "Amount out too small");
     }
@@ -140,14 +146,24 @@ contract PumpToken is BondingCurve {
 
     function list() external payable onlyWhenLaunching {
         require(msg.value == LISTING_FEE, "Must pay listing fee");
-        require(totalRaised >= LISTING_THRESHOLD, "Total raised must pass the listing threshold");
+        require(
+            totalRaised >= LISTING_THRESHOLD,
+            "Total raised must pass the listing threshold"
+        );
 
-        IUniswapV2Factory uniswapFactory = IUniswapV2Factory(uniswapV2Router.factory());
+        IUniswapV2Factory uniswapFactory = IUniswapV2Factory(
+            uniswapV2Router.factory()
+        );
 
         address WETH = uniswapV2Router.WETH();
-        uniswapPair = IUniswapV2Pair(uniswapFactory.createPair(address(this), WETH));
+        uniswapPair = IUniswapV2Pair(
+            uniswapFactory.createPair(address(this), WETH)
+        );
 
-        uint256 tokensToList = LISTING_LIQUIDITY.mulDiv(totalSupply(), totalRaised);
+        uint256 tokensToList = LISTING_LIQUIDITY.mulDiv(
+            totalSupply(),
+            totalRaised
+        );
 
         _mint(address(uniswapPair), tokensToList); // mint liquidity amount to the pair
 
@@ -169,7 +185,13 @@ contract PumpToken is BondingCurve {
     }
 
     function collectFee() external onlyOwner {
-      (bool sent, ) = msg.sender.call{value: address(this).balance - totalReserve - totalRaised}("");
-      require(sent, "Failed to send fee to the owner");
+        (bool sent, ) = msg.sender.call{
+            value: address(this).balance - totalReserve - totalRaised
+        }("");
+        require(sent, "Failed to send fee to the owner");
     }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 }

@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import "./BancorFormula.sol";
 
-abstract contract BondingCurve is ERC20Upgradeable, UUPSUpgradeable, OwnableUpgradeable, BancorFormula {
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+
+abstract contract BondingCurve is ERC20Upgradeable, BancorFormula {
     /**
      * @dev Available balance of reserve token in contract
      */
@@ -67,10 +65,4 @@ abstract contract BondingCurve is ERC20Upgradeable, UUPSUpgradeable, OwnableUpgr
         poolBalance = poolBalance - amountOut;
         return amountOut;
     }
-
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        onlyOwner
-        override
-    {}
 }
