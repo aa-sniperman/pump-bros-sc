@@ -66,35 +66,37 @@ contract PumpToken is BondingCurve {
         string memory name_,
         string memory symbol_,
         address factory_,
+        address uniswapV2Router_,
         uint32 reserveRatio_
     ) external initializer {
         __ERC20_init(name_, symbol_);
         factory = factory_;
         reserveRatio = reserveRatio_;
         _launching = true;
-        uniswapV2Router = IUniswapV2Router02(
-            0xc7bFC828C49A14beA1e6c56fDe2545b19F1CC31E
-        );
+        uniswapV2Router = IUniswapV2Router02(uniswapV2Router_);
     }
 
     modifier onlyWhenLaunching() {
-        require(_launching);
+        require(_launching, "This action is on allowed when launching");
         _;
     }
 
-    function buy(address recipient) external payable onlyWhenLaunching {
-        _buy(msg.value, recipient);
+    function buy(uint256 minAmountOut, address recipient) external payable onlyWhenLaunching {
+        uint256 tokensToMint = _buy(msg.value, recipient);
+        require(tokensToMint >= minAmountOut, "Amount out too small");
     }
-    function _buy(uint256 value, address recipient) internal {
-        require(value > 0);
+    function _buy(uint256 value, address recipient) internal returns (uint256) {
+        require(value > 0, "Amount in too small");
         (, , uint256 buyAmount) = _chargeFee(value);
         uint256 tokensToMint = _bcBuy(buyAmount, recipient);
         totalRaised = totalRaised + buyAmount;
         emit Buy(recipient, buyAmount, tokensToMint);
+        return tokensToMint;
     }
 
     function sell(
         uint256 sellAmount,
+        uint256 minAmountOut,
         address recipient
     ) external onlyWhenLaunching {
         // remove pumped
@@ -106,9 +108,12 @@ contract PumpToken is BondingCurve {
         // burn token and transfer out
         uint256 bcAmountOut = _bcSell(msg.sender, sellAmount);
         (, , uint256 amountOut) = _chargeFee(bcAmountOut);
+
+        require(amountOut >= minAmountOut, "Amount out too small");
+
         totalRaised = totalRaised - amountOut;
         (bool sent, ) = recipient.call{value: amountOut}("");
-        require(sent);
+        require(sent, "Failed to redeem funds");
         emit Sell(recipient, sellAmount, amountOut);
     }
 
@@ -135,8 +140,8 @@ contract PumpToken is BondingCurve {
     }
 
     function list() external payable onlyWhenLaunching {
-        require(msg.value == LISTING_FEE);
-        require(totalRaised >= LISTING_THRESHOLD);
+        require(msg.value == LISTING_FEE, "Must pay listing fee");
+        require(totalRaised >= LISTING_THRESHOLD, "Total raised must pass the listing threshold");
 
         IUniswapV2Factory uniswapFactory = IUniswapV2Factory(uniswapV2Router.factory());
 
@@ -166,6 +171,6 @@ contract PumpToken is BondingCurve {
 
     function collectFee() external {
       (bool sent, ) = factory.call{value: address(this).balance - totalReserve - totalRaised}("");
-      require(sent);
+      require(sent, "Failed to send fee to the factory");
     }
 }

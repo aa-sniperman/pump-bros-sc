@@ -8,9 +8,13 @@ contract PumpFactory is Ownable {
     // State variable to keep track of all deployed PumpTokens
     PumpToken[] public deployedTokens;
 
+    address public uniswapV2Router;
+
     event PumpTokenCreated(address tokenAddress, address indexed owner);
 
-    constructor() Ownable(msg.sender){}
+    constructor(address uniswapV2Router_) Ownable(msg.sender){
+        uniswapV2Router = uniswapV2Router_;
+    }
     // Function to create a new PumpToken
     function createPumpToken(
         string memory name,
@@ -21,7 +25,7 @@ contract PumpFactory is Ownable {
         PumpToken newToken = new PumpToken();
 
         // Initialize the PumpToken (calling its initialize function)
-        newToken.initialize(name, symbol, address(this), reserveRatio);
+        newToken.initialize(name, symbol, address(this), uniswapV2Router, reserveRatio);
 
         // Add the newly created PumpToken to the array
         deployedTokens.push(newToken);
