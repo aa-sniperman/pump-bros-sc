@@ -42,8 +42,6 @@ contract PumpToken is BondingCurve {
 
     uint256 public totalPumped;
 
-    address public factory;
-
     bool private _launching;
 
     mapping(address => uint256) public pumped;
@@ -65,12 +63,13 @@ contract PumpToken is BondingCurve {
     function initialize(
         string memory name_,
         string memory symbol_,
-        address factory_,
+        address owner_,
         address uniswapV2Router_,
         uint32 reserveRatio_
     ) external initializer {
         __ERC20_init(name_, symbol_);
-        factory = factory_;
+        __Ownable_init(owner_);
+        __UUPSUpgradeable_init();
         reserveRatio = reserveRatio_;
         _launching = true;
         uniswapV2Router = IUniswapV2Router02(uniswapV2Router_);
@@ -169,8 +168,8 @@ contract PumpToken is BondingCurve {
         totalReserve = totalReserve + reserved;
     }
 
-    function collectFee() external {
-      (bool sent, ) = factory.call{value: address(this).balance - totalReserve - totalRaised}("");
-      require(sent, "Failed to send fee to the factory");
+    function collectFee() external onlyOwner {
+      (bool sent, ) = msg.sender.call{value: address(this).balance - totalReserve - totalRaised}("");
+      require(sent, "Failed to send fee to the owner");
     }
 }
