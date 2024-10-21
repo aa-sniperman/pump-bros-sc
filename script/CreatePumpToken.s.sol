@@ -6,13 +6,12 @@ import {PumpFactory} from "../src/PumpFactory.sol";
 import {console} from "forge-std/console.sol";
 
 contract CreatePumpToken is Script {
-    function run() external {
+    function run(address factoryAddress, string memory tokenName, string memory tokenSymbol) external {
         vm.startBroadcast();
 
-        PumpFactory factory = PumpFactory();
+        PumpFactory factory = PumpFactory(factoryAddress);
 
-        address newTokenAddress = factory.createPumpToken(tokenName, tokenSymbol, 100);
-        console.log("New token deployed at address:", newTokenAddress);
+        factory.createPumpToken(tokenName, tokenSymbol, 1e5);
 
         vm.stopBroadcast();
     }
