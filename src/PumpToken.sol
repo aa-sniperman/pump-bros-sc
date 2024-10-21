@@ -15,19 +15,24 @@ import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IWETH.sol";
 
+// Only for testing
+import {console} from "forge-std/console.sol";
+
 contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
     using Math for uint256;
     using SafeMath for uint256;
 
-    uint256 private constant TOTAL_SUPPLY_CEILING = 1e9;
+    uint256 private constant TOTAL_SUPPLY_CEILING = 1e27; // 1 billion
 
-    uint256 private constant TOKEN_CREATION_FEE = 1e8 gwei; // 0.1 ETH
+    uint256 private constant TOKEN_CREATION_FEE = 0.5 ether; // 0.5 ETH
 
-    uint256 private constant LISTING_FEE = 1e8 gwei; // 0.1 ETH
+    uint256 private constant LISTING_FEE = 1 ether; // 1 ETH
 
-    uint256 private constant LISTING_THRESHOLD = 15 ether;
+    uint256 private constant SLOPE = 4639315932820380000;
 
-    uint256 private constant LISTING_LIQUIDITY = 7 ether;
+    uint256 private constant LISTING_THRESHOLD = 366.67 ether;
+
+    uint256 private constant LISTING_LIQUIDITY = 256.67 ether;
 
     uint16 private constant RESERVE_RATE_BPS = 500; // 5% in basis point
 
@@ -67,13 +72,22 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
         string memory name_,
         string memory symbol_,
         address owner_,
+        address creator_,
         address uniswapV2Router_,
         uint32 reserveRatio_
-    ) external initializer {
+    ) external payable initializer {
+        require(msg.value >= TOKEN_CREATION_FEE, "Not enough money to pay token creation fee");
         __ERC20_init(name_, symbol_);
         __Ownable_init(owner_);
         __UUPSUpgradeable_init();
+
         reserveRatio = reserveRatio_;
+        
+        uint256 inititalDeposit = msg.value - TOKEN_CREATION_FEE;
+        uint256 initialTokens = _initialBuy(inititalDeposit, SLOPE, creator_);
+
+        emit Buy(creator_, inititalDeposit, initialTokens);
+
         _launching = true;
         uniswapV2Router = IUniswapV2Router02(uniswapV2Router_);
     }
@@ -88,11 +102,13 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
         address recipient
     ) external payable onlyWhenLaunching {
         uint256 tokensToMint = _buy(msg.value, recipient);
+        console.log("tokens to mint: %d", tokensToMint);
         require(tokensToMint >= minAmountOut, "Amount out too small");
     }
     function _buy(uint256 value, address recipient) internal returns (uint256) {
         require(value > 0, "Amount in too small");
         (, , uint256 buyAmount) = _chargeFee(value);
+        console.log("actual buy amount: %d", buyAmount);
         uint256 tokensToMint = _bcBuy(buyAmount, recipient);
         totalRaised = totalRaised + buyAmount;
         emit Buy(recipient, buyAmount, tokensToMint);
@@ -182,6 +198,8 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
         fee = amount.mulDiv(FEE_RATE_BPS, 1e5);
         remaining = amount - reserved - fee;
         totalReserve = totalReserve + reserved;
+
+        console.log("after charge: %d, %d, %d", reserved, fee, remaining);
     }
 
     function collectFee() external onlyOwner {

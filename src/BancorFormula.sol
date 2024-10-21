@@ -5,6 +5,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./Math/Power.sol";
 
+import { UD60x18, ud } from "@prb/math/src/UD60x18.sol";
+
+// Only for testing
+import {console} from "forge-std/console.sol";
+
 /**
  * @title Bancor formula by Bancor
  * @dev Modified from the original by Slava Balasanov
@@ -14,8 +19,23 @@ import "./Math/Power.sol";
  * and to You under the Apache License, Version 2.0. "
  */
 contract BancorFormula is Power {
+    uint256 private constant SLOPE_PRECISION = 1e36;
     uint32 private constant MAX_WEIGHT = 1000000;
     using Math for uint256;
+
+    function calculateInitialPurchaseReturn(
+        uint32 _connectorWeight,
+        uint256 _depositAmount,
+        uint256 slope
+    ) public view returns (uint256) {
+        UD60x18 p = ud(_depositAmount);
+        UD60x18 invM = ud(SLOPE_PRECISION).div(ud(slope));
+        UD60x18 cw = ud(_connectorWeight).div(ud(MAX_WEIGHT));
+        UD60x18 invCw = ud(MAX_WEIGHT).div(ud(_connectorWeight));
+        UD60x18 base = p.mul(invM).mul(invCw);
+        UD60x18 result = base.pow(cw);
+        return result.unwrap();
+    }
     /**
      * @dev given a token supply, connector balance, weight and a deposit amount (in the connector token),
      * calculates the return for a given conversion (in the main token)

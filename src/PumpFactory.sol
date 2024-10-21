@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
+// Only for testing
+import {console} from "forge-std/console.sol";
+
 contract PumpFactory is Ownable {
 
     // State variable to keep track of all deployed PumpTokens
@@ -26,11 +29,11 @@ contract PumpFactory is Ownable {
         string memory name,
         string memory symbol,
         uint32 reserveRatio
-    ) external {
+    ) external payable {
         // Deploy a new PumpToken instance
-        ERC1967Proxy newToken = new ERC1967Proxy(
+        ERC1967Proxy newToken = new ERC1967Proxy{value: msg.value}(
             pumpImplementation,
-            abi.encodeWithSelector(0x38df61fd, name, symbol, address(this), uniswapV2Router, reserveRatio)
+            abi.encodeWithSelector(0x75b0ec14, name, symbol, owner(), msg.sender, uniswapV2Router, reserveRatio)
         );
 
         // Add the newly created PumpToken to the array
@@ -38,6 +41,8 @@ contract PumpFactory is Ownable {
 
         // Emit an event for the new PumpToken creation
         emit PumpTokenCreated(address(newToken), msg.sender);
+
+        console.log("token created: %s", address(newToken));
     }
 
     // Function to update the pumpImplementation address

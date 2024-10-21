@@ -189,7 +189,7 @@ contract Power {
     uint32 _expD
   ) internal view returns (uint256, uint8)
   {
-    assert(_baseN < MAX_NUM);
+    require(_baseN < MAX_NUM, "Max num exceeded");
     require(_baseN >= _baseD, "Bases < 1 are not supported.");
 
     uint256 baseLog;
