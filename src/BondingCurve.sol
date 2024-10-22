@@ -30,7 +30,7 @@ abstract contract BondingCurve is ERC20Upgradeable, BancorFormula {
     event BCMinted(uint256 amountMinted, uint256 totalCost);
     event BCWithdrawn(uint256 amountWithdrawn, uint256 reward);
 
-    function _initialBuy(uint256 buyAmount, uint256 slope, address recipient) internal returns(uint256) {
+    function _bcInitialBuy(uint256 buyAmount, uint256 slope, address recipient) internal returns(uint256) {
                 
         uint256 initialTokens = calculateInitialPurchaseReturn(
             reserveRatio,
@@ -57,8 +57,6 @@ abstract contract BondingCurve is ERC20Upgradeable, BancorFormula {
             reserveRatio,
             buyAmount
         );
-
-        console.log("tokens to mint: %d", tokensToMint);
 
         _mint(recipient, tokensToMint);
         poolBalance = poolBalance + buyAmount;

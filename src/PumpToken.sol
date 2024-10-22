@@ -28,11 +28,11 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
 
     uint256 private constant LISTING_FEE = 1 ether; // 1 ETH
 
-    uint256 private constant SLOPE = 4639315932820380000;
+    uint256 private constant SLOPE = 7664811483415976000;
 
     uint256 private constant LISTING_THRESHOLD = 366.67 ether;
 
-    uint256 private constant LISTING_LIQUIDITY = 256.67 ether;
+    uint256 private constant LISTING_LIQUIDITY = 155.56 ether;
 
     uint16 private constant RESERVE_RATE_BPS = 500; // 5% in basis point
 
@@ -45,6 +45,8 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public totalReserve;
 
     uint256 public totalPumped;
+
+    uint256 public selfBought;
 
     IUniswapV2Router02 public uniswapV2Router;
 
@@ -73,23 +75,29 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
         string memory symbol_,
         address owner_,
         address creator_,
-        address uniswapV2Router_,
-        uint32 reserveRatio_
+        address uniswapV2Router_
     ) external payable initializer {
-        require(msg.value >= TOKEN_CREATION_FEE, "Not enough money to pay token creation fee");
+        require(msg.value >= TOKEN_CREATION_FEE + LISTING_FEE, "Not enough money to pay token creation & listing fee");
         __ERC20_init(name_, symbol_);
         __Ownable_init(owner_);
         __UUPSUpgradeable_init();
 
-        reserveRatio = reserveRatio_;
+        reserveRatio = 444444;
         
-        uint256 inititalDeposit = msg.value - TOKEN_CREATION_FEE;
-        uint256 initialTokens = _initialBuy(inititalDeposit, SLOPE, creator_);
+        uint256 value = msg.value - TOKEN_CREATION_FEE - LISTING_FEE;
 
-        emit Buy(creator_, inititalDeposit, initialTokens);
+        (, , uint256 initialDeposit, uint256 spare) = _chargeFee(value, LISTING_THRESHOLD);
+
+        uint256 initialTokens = _bcInitialBuy(initialDeposit, SLOPE, creator_);
+
+        totalRaised = totalRaised + initialDeposit;
+
+        emit Buy(creator_, initialDeposit, initialTokens);
 
         _launching = true;
         uniswapV2Router = IUniswapV2Router02(uniswapV2Router_);
+
+        _refundSpare(spare, creator_);
     }
 
     modifier onlyWhenLaunching() {
@@ -107,11 +115,15 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
     }
     function _buy(uint256 value, address recipient) internal returns (uint256) {
         require(value > 0, "Amount in too small");
-        (, , uint256 buyAmount) = _chargeFee(value);
-        console.log("actual buy amount: %d", buyAmount);
+        (, , uint256 buyAmount, uint256 spare) = _chargeFee(value, LISTING_THRESHOLD - totalRaised);
         uint256 tokensToMint = _bcBuy(buyAmount, recipient);
         totalRaised = totalRaised + buyAmount;
+        _refundSpare(spare, msg.sender);
         emit Buy(recipient, buyAmount, tokensToMint);
+
+        if(totalRaised >= LISTING_THRESHOLD) {
+            list();
+        }
         return tokensToMint;
     }
 
@@ -128,11 +140,13 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
 
         // burn token and transfer out
         uint256 bcAmountOut = _bcSell(msg.sender, sellAmount);
-        (, , uint256 amountOut) = _chargeFee(bcAmountOut);
+        
+        totalRaised = totalRaised - bcAmountOut;
+
+        (, , uint256 amountOut,) = _chargeFee(bcAmountOut, totalRaised);
 
         require(amountOut >= minAmountOut, "Amount out too small");
 
-        totalRaised = totalRaised - amountOut;
         (bool sent, ) = recipient.call{value: amountOut}("");
         require(sent, "Failed to redeem funds");
         emit Sell(recipient, sellAmount, amountOut);
@@ -151,17 +165,25 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
         if (
             (TOTAL_SUPPLY_CEILING.safeMinus(totalSupply())).mulDiv(
                 USER_HOLDINGS_TO_PUMP_THRESHOLD_BPS,
-                1e5
+                1e4
             ) <= totalPumped
         ) {
-            _buy(totalReserve, address(this));
+
+            uint256 bought = _bcBuy(totalReserve, address(this));
+
+            selfBought = selfBought + bought;
+            totalRaised = totalRaised + totalReserve;
+
+            if(totalRaised >= LISTING_THRESHOLD) {
+                list();
+            }
+            
             emit Pump(totalReserve);
             totalReserve = 0;
         }
     }
 
-    function list() external payable onlyWhenLaunching {
-        require(msg.value == LISTING_FEE, "Must pay listing fee");
+    function list() public onlyWhenLaunching {
         require(
             totalRaised >= LISTING_THRESHOLD,
             "Total raised must pass the listing threshold"
@@ -176,12 +198,13 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
             uniswapFactory.createPair(address(this), WETH)
         );
 
-        uint256 tokensToList = LISTING_LIQUIDITY.mulDiv(
-            totalSupply(),
-            totalRaised
-        );
+        uint256 tokensToMint = TOTAL_SUPPLY_CEILING - totalSupply();
 
-        _mint(address(uniswapPair), tokensToList); // mint liquidity amount to the pair
+        _mint(address(this), tokensToMint);
+
+        uint256 tokensToList = selfBought + tokensToMint;
+
+        _transfer(address(this), address(uniswapPair), tokensToList); // mint liquidity amount to the pair
 
         IWETH(WETH).deposit{value: LISTING_LIQUIDITY}();
         assert(IWETH(WETH).transfer(address(uniswapPair), LISTING_LIQUIDITY)); // transfer weth to the pair
@@ -192,14 +215,25 @@ contract PumpToken is BondingCurve, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function _chargeFee(
-        uint256 amount
-    ) internal returns (uint256 reserved, uint256 fee, uint256 remaining) {
-        reserved = amount.mulDiv(RESERVE_RATE_BPS, 1e5);
-        fee = amount.mulDiv(FEE_RATE_BPS, 1e5);
-        remaining = amount - reserved - fee;
+        uint256 amount,
+        uint256 maxActual
+    ) internal returns (uint256 reserved, uint256 fee, uint256 actual, uint256 spare) {
+        uint256 actualRate = 1e4 - RESERVE_RATE_BPS - FEE_RATE_BPS;
+        uint256 amountAfterRate = amount.mulDiv(actualRate, 1e4);
+        actual = Math.min(maxActual, amountAfterRate);
+        reserved = actual.mulDiv(RESERVE_RATE_BPS, actualRate);
+        fee = actual.mulDiv(FEE_RATE_BPS, actualRate);
+        spare = amountAfterRate - actual;
         totalReserve = totalReserve + reserved;
+    }
 
-        console.log("after charge: %d, %d, %d", reserved, fee, remaining);
+    function _refundSpare(uint256 spare, address recipient) internal {
+        if(spare > 0) {
+            (bool sent, ) = recipient.call{
+                value: spare
+            }("");
+            require(sent, "Failed to refund spare");
+        }
     }
 
     function collectFee() external onlyOwner {

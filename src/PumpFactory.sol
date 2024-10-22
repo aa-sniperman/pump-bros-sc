@@ -27,13 +27,12 @@ contract PumpFactory is Ownable {
     // Function to create a new PumpToken
     function createPumpToken(
         string memory name,
-        string memory symbol,
-        uint32 reserveRatio
+        string memory symbol
     ) external payable {
         // Deploy a new PumpToken instance
         ERC1967Proxy newToken = new ERC1967Proxy{value: msg.value}(
             pumpImplementation,
-            abi.encodeWithSelector(0x75b0ec14, name, symbol, owner(), msg.sender, uniswapV2Router, reserveRatio)
+            abi.encodeWithSelector(0xdb0ed6a0, name, symbol, owner(), msg.sender, uniswapV2Router)
         );
 
         // Add the newly created PumpToken to the array

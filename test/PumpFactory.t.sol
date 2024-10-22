@@ -13,6 +13,8 @@ contract PumpTokenTest is Test {
     address public constant owner = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
     uint256 private constant TOKEN_CREATION_FEE = 0.5 ether; // 0.5 ETH
+    uint256 private constant LISTING_FEE = 1 ether; // 1 ETH
+
     PumpFactory public pumpFactory;
     PumpToken public pumpToken;
     PumpToken public pumpToken1;
@@ -27,7 +29,7 @@ contract PumpTokenTest is Test {
         vm.stopBroadcast();
     }
 
-    function testFactoryInitialSetup() public {
+    function testFactoryInitialSetup() public view {
         assertEq(
             pumpFactory.uniswapV2Router(),
             uniswapV2Router,
@@ -45,14 +47,12 @@ contract PumpTokenTest is Test {
         vm.startBroadcast(user1);
         string memory name = "Pump Token";
         string memory symbol = "PUMP";
-        uint32 reserveRatio = 444444; // 1 / 2.25
 
         uint256 inititalDeposit = 0.01 ether;
 
-        pumpFactory.createPumpToken{value: TOKEN_CREATION_FEE + inititalDeposit}(
+        pumpFactory.createPumpToken{value: TOKEN_CREATION_FEE + LISTING_FEE + inititalDeposit}(
             name,
-            symbol,
-            reserveRatio
+            symbol
         );
         vm.stopBroadcast();
 

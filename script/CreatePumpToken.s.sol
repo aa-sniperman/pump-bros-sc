@@ -11,7 +11,7 @@ contract CreatePumpToken is Script {
 
         PumpFactory factory = PumpFactory(factoryAddress);
 
-        factory.createPumpToken(tokenName, tokenSymbol, 1e5);
+        factory.createPumpToken(tokenName, tokenSymbol);
 
         vm.stopBroadcast();
     }
